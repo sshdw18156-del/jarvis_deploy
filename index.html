@@ -709,13 +709,15 @@ async function webSearch(query){
   setResp('<span style="opacity:.4;font-size:11px;letter-spacing:2px;">🔍 WEB SEARCHING ···</span>','// SEARCHING');
   orbState='thinking';
   try{
-    const res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5&search_lang=ko&country=KR`,{
-      headers:{
-        'Accept':'application/json',
-        'Accept-Encoding':'gzip',
-        'X-Subscription-Token': BRAVE_KEY
-      }
-    });
+    // Railway 프록시 서버로 검색 (CORS 해결)
+    const PROXY_URL = 'https://jarvisdeploy-production.up.railway.app';
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    let res;
+    if(isLocal){
+      res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    } else {
+      res = await fetch(`${PROXY_URL}/api/search?q=${encodeURIComponent(query)}`);
+    }
     if(!res.ok) throw new Error('검색 오류: '+res.status);
     const data = await res.json();
     const results = data.web?.results || [];
