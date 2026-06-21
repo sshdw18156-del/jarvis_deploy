@@ -317,13 +317,20 @@ let orbState = 'idle';
 let USER_NAME = localStorage.getItem('jarvis_name') || '';
 
 function getSYS() {
-  const name = USER_NAME || '사용자';
-  return `당신은 J.A.R.V.I.S (자비스)입니다. 토니 스타크의 AI 비서처럼 행동합니다.
-[절대 규칙] 사용자 호칭은 반드시 "${name} 님"만 사용. "사용자 님", "고객 님" 등 다른 호칭 절대 금지.
+  const name = USER_NAME || '성호';
+  const mem = loadMemory();
+  const memText = mem.length > 0 ? '\n[이전 대화 요약]\n' + mem.slice(-5).map(m=>m.role+': '+m.content.substring(0,80)).join('\n') : '';
+  const fcn = loadFCN();
+  const fcnText = fcn.length > 0 ? '\n[FCN 현황] 총 '+fcn.length+'건 / 미정산: '+fcn.filter(f=>f.status!=='정산완료').length+'건' : '';
+  return `당신은 J.A.R.V.I.S (자비스)입니다. ${name} 님의 현장 AI 비서입니다.
+프로젝트: S-OIL SHAHEEN PROJECT PKG#1 (SHN1), 울산
+소속: 대신기공 고정기계팀 (4공구/5공구 담당)
+주임: 유재명 부장 / 클라이언트: 권영도 책임매니저 (HDEC)
+[절대 규칙] 사용자 호칭은 반드시 "${name} 님"만 사용.
 [절대 규칙] 자신을 소개할 때는 반드시 "자비스"라고 말할 것.
 - 간결하고 전문적, 핵심 먼저, 3~5문장
-- 사업, 마케팅, 개발, 전략 등 다양한 분야 지원
-- 한국어 응답 (영어 키워드 혼용 가능)`;
+- 기계/플랜트 현장 실무 중심으로 답변
+- 한국어 응답${memText}${fcnText}`;
 }
 
 // ---- ORB ----
@@ -618,6 +625,127 @@ async function toggleMic(){
   try{recog.start();}catch(e){sysLog('MIC ERROR: '+e.message);}
 }
 
+
+// ======== 대화 기억 (localStorage) ========
+function saveMemory(){
+  try{
+    localStorage.setItem('jarvis_memory', JSON.stringify(messages.slice(-20)));
+    sysLog('MEMORY SAVED ('+messages.length+'건)',true);
+  }catch(e){sysLog('MEMORY SAVE ERROR');}
+}
+function loadMemory(){
+  try{
+    const m = localStorage.getItem('jarvis_memory');
+    return m ? JSON.parse(m) : [];
+  }catch(e){return [];}
+}
+function restoreMemory(){
+  const mem = loadMemory();
+  if(mem.length > 0){
+    messages = mem;
+    sysLog('MEMORY RESTORED: '+mem.length+'건',true);
+    setResp('이전 대화 '+mem.length+'건을 복원했습니다.<br>계속 이어서 진행하겠습니다, '+USER_NAME+' 님.');
+  } else {
+    sysLog('NO MEMORY FOUND');
+    setResp('저장된 대화 기록이 없습니다, '+USER_NAME+' 님.');
+  }
+}
+function clearMemory(){
+  localStorage.removeItem('jarvis_memory');
+  messages = [];
+  sysLog('MEMORY CLEARED',true);
+  setResp('대화 기록을 초기화했습니다.');
+}
+
+// ======== FCN 관리 ========
+function loadFCN(){
+  try{
+    const f = localStorage.getItem('jarvis_fcn');
+    return f ? JSON.parse(f) : [];
+  }catch(e){return [];}
+}
+function saveFCN(list){
+  localStorage.setItem('jarvis_fcn', JSON.stringify(list));
+}
+function fcnSummary(){
+  const list = loadFCN();
+  if(list.length===0) return 'FCN 항목이 없습니다. "FCN 추가 FCN-001 제목 4공구" 형식으로 추가하세요.';
+  const done = list.filter(f=>f.status==='정산완료').length;
+  const amt = list.reduce((s,f)=>s+(parseFloat(f.amount)||0),0);
+  let txt = `[FCN 현황] ${new Date().toLocaleDateString('ko-KR')}\n총 ${list.length}건 / 완료 ${done}건 / 미완료 ${list.length-done}건\n총금액: ${amt.toLocaleString()}원\n\n`;
+  list.forEach(f=>{
+    const sym = f.status==='정산완료'?'✅':'🔲';
+    txt += `${sym} [${f.id}] ${f.title} / ${f.zone} / ${f.status}\n`;
+  });
+  return txt;
+}
+
+// ======== 카카오톡 보고서 생성 ========
+function kakaoReport(type){
+  const today = new Date().toLocaleDateString('ko-KR');
+  let txt = '';
+  if(type==='daily'){
+    txt = `========================================\n[SHN1 기계팀 일일작업 현황] ${today}\n========================================\n\n[4공구] 투입인원: _명\n  - \n\n[5공구] 투입인원: _명\n  - \n\n[안전사항]\n  - 특이사항 없음\n\n담당: 대신기공 기계팀 (성호)\n========================================`;
+  } else if(type==='mc'){
+    const mem = loadMemory();
+    txt = `[SHN1 기계팀 MC Task 주간현황] ${today}\n\n[ME-001 Static 설치검사]\n전체: _건 / 완료: _건 / 미완료: _건\n\n[ME-002 Alignment]\n전체: _건 / 완료: _건 / 미완료: _건\n\n[ME-003 Box-up]\n전체: _건 / 완료: _건 / 미완료: _건\n\n담당: 대신기공 기계팀 (성호)`;
+  } else if(type==='fcn'){
+    txt = fcnSummary();
+  }
+  // 클립보드 복사
+  navigator.clipboard.writeText(txt).then(()=>{
+    setResp('📋 카카오톡 보고서가 클립보드에 복사됐습니다!<br><br><pre style="font-size:11px;white-space:pre-wrap;color:#a8e6f0;">'+txt+'</pre>');
+    sysLog('KAKAO REPORT COPIED',true);
+  }).catch(()=>{
+    setResp('<pre style="font-size:11px;white-space:pre-wrap;color:#a8e6f0;">'+txt+'</pre>');
+  });
+}
+
+// ======== 명령어 파서 ========
+function parseCommand(text){
+  const t = text.trim();
+
+  // 대화 기억
+  if(/^(기억 복원|대화 복원|이전 대화)/.test(t)){ restoreMemory(); return true; }
+  if(/^(기억 저장|대화 저장)/.test(t)){ saveMemory(); return true; }
+  if(/^(기억 초기화|대화 초기화|리셋)/.test(t)){ clearMemory(); return true; }
+
+  // FCN 조회
+  if(/^FCN 현황/.test(t)){
+    setResp(fcnSummary().replace(/\n/g,'<br>'));
+    sysLog('FCN SUMMARY',true); return true;
+  }
+  // FCN 추가: "FCN 추가 FCN-001 제목 4공구 1000000"
+  if(/^FCN 추가/.test(t)){
+    const parts = t.split(' ');
+    const id = parts[2]||'FCN-???';
+    const zone = parts[parts.length-2]||'공통';
+    const amt = parseFloat(parts[parts.length-1])||0;
+    const title = parts.slice(3, parts.length-2).join(' ')||'미입력';
+    const list = loadFCN();
+    list.push({id, title, zone, status:'미정산', amount:amt});
+    saveFCN(list);
+    setResp(`✅ FCN ${id} 추가 완료<br>${title} / ${zone} / ${amt.toLocaleString()}원`);
+    sysLog('FCN ADDED: '+id,true); return true;
+  }
+  // FCN 상태 변경: "FCN 완료 FCN-001"
+  if(/^FCN 완료/.test(t)){
+    const id = t.split(' ')[2];
+    const list = loadFCN();
+    const item = list.find(f=>f.id===id);
+    if(item){ item.status='정산완료'; saveFCN(list); setResp(`✅ FCN ${id} → 정산완료`); }
+    else setResp(`❌ FCN ${id} 없음`);
+    return true;
+  }
+
+  // 카카오톡 보고서
+  if(/^(일일보고|일일 보고)/.test(t)){ kakaoReport('daily'); return true; }
+  if(/^(MC 보고|MC현황|MC 현황)/.test(t)){ kakaoReport('mc'); return true; }
+  if(/^(FCN 보고)/.test(t)){ kakaoReport('fcn'); return true; }
+
+  return false;
+}
+
 // ---- SEND ----
 async function sendMessage(){
   const inp=document.getElementById('userInput');
@@ -625,6 +753,8 @@ async function sendMessage(){
   const text=inp.value.trim();
   if(!text)return;
   if(!API_KEY){openModal();return;}
+  // 로컬 명령어 파서 먼저 실행
+  if(parseCommand(text)) return;
   inp.value=''; inp.style.height='auto';
   btn.disabled=true; orbState='thinking';
   setStatus('PROCESSING...');
@@ -662,6 +792,7 @@ async function sendMessage(){
       sysLog('RESPONSE DELIVERED ('+elapsed+'ms)',true);
       setResp(reply.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>'));
       speak(reply);
+      saveMemory();
     }
   }catch(e){
     orbState='idle';
@@ -685,7 +816,15 @@ if(!API_KEY||!USER_NAME)setTimeout(openModal,800);
 else{
   setStatus('AUTHENTICATED — READY');
   sysLog('WELCOME, '+USER_NAME.toUpperCase(),true);
-  document.getElementById('responseText').innerHTML=`좋은 하루입니다, ${USER_NAME} 님.<br>무엇을 도와드릴까요?`;
+  // 이전 대화 자동 복원
+  const savedMem = loadMemory();
+  if(savedMem.length > 0){
+    messages = savedMem;
+    sysLog('MEMORY RESTORED: '+savedMem.length+'건',true);
+    document.getElementById('responseText').innerHTML=`${USER_NAME} 님, 다시 오셨군요.<br>이전 대화 ${savedMem.length}건을 복원했습니다.<br>계속 도와드리겠습니다.`;
+  } else {
+    document.getElementById('responseText').innerHTML=`좋은 하루입니다, ${USER_NAME} 님.<br>무엇을 도와드릴까요?`;
+  }
 }
 setTimeout(()=>sysLog('JARVIS CORE LOADED',true),500);
 setTimeout(()=>sysLog('READY FOR INPUT',true),1500);
