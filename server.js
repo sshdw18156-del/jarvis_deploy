@@ -50,6 +50,33 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
+// ElevenLabs TTS 프록시
+app.post('/api/tts', async (req, res) => {
+  try {
+    const { text, voice_id } = req.body;
+    const response = await axios.post(
+      `https://api.elevenlabs.io/v1/text-to-speech/${voice_id || 'pNInz6obpgDQGcFmaJgB'}/stream`,
+      {
+        text: text,
+        model_id: 'eleven_multilingual_v2',
+        voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true }
+      },
+      {
+        headers: {
+          'Accept': 'audio/mpeg',
+          'Content-Type': 'application/json',
+          'xi-api-key': 'sk_e038db2230e926d3671bc70308a2b5584d6aa4cd8256d973'
+        },
+        responseType: 'arraybuffer'
+      }
+    );
+    res.set('Content-Type', 'audio/mpeg');
+    res.send(response.data);
+  } catch (error) {
+    res.status(error.response?.status || 500).json({ error: 'TTS 실패: ' + error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log('JARVIS 서버 실행중: http://localhost:' + PORT);
