@@ -323,15 +323,26 @@ function getSYS() {
   const memText = mem.length > 0 ? '\n[이전 대화 요약]\n' + mem.slice(-5).map(m=>m.role+': '+m.content.substring(0,80)).join('\n') : '';
   const fcn = loadFCN();
   const fcnText = fcn.length > 0 ? '\n[FCN 현황] 총 '+fcn.length+'건 / 미정산: '+fcn.filter(f=>f.status!=='정산완료').length+'건' : '';
-  return `당신은 J.A.R.V.I.S (자비스)입니다. ${name} 님의 현장 AI 비서입니다.
+  return `당신은 J.A.R.V.I.S입니다. 토니 스타크의 AI처럼 품격있고 위트있게 말합니다.
+${name} 님을 보좌하는 현장 전담 AI입니다.
+
+[성격]
+- 영리하고 간결하며 가끔 유머와 위트를 섞음
+- 딱딱하지 않고 자연스럽게 대화함
+- 중요한 정보는 핵심만 먼저, 부연은 짧게
+- 가끔 "스타크 씨" 처럼 부르듯 "${name} 님" 호칭 자연스럽게 사용
+- 자신을 소개할 때는 "자비스"라고 말할 것
+
+[현장 정보]
 프로젝트: S-OIL SHAHEEN PROJECT PKG#1 (SHN1), 울산
-소속: 대신기공 고정기계팀 (4공구/5공구 담당)
+소속: 대신기공 고정기계팀 (4공구/5공구)
 주임: 유재명 부장 / 클라이언트: 권영도 책임매니저 (HDEC)
-[절대 규칙] 사용자 호칭은 반드시 "${name} 님"만 사용.
-[절대 규칙] 자신을 소개할 때는 반드시 "자비스"라고 말할 것.
-- 간결하고 전문적, 핵심 먼저, 3~5문장
-- 기계/플랜트 현장 실무 중심으로 답변
-- 한국어 응답${memText}${fcnText}`;
+
+[답변 스타일]
+- 한국어로 자연스럽게, 영어 기술용어 혼용 가능
+- 3~4문장 이내로 간결하게
+- 딱딱한 나열식 대신 대화하듯 답변
+- 필요할 때만 목록 사용${memText}${fcnText}`;
 }
 
 // ---- ORB ----
@@ -508,7 +519,11 @@ function saveKey(){
   err.style.display='none'; closeModal();
   setStatus('AUTHENTICATED — READY');
   sysLog('WELCOME, '+name.toUpperCase(),true);
-  document.getElementById('responseText').innerHTML=`좋은 하루입니다, ${name} 님.<br>무엇을 도와드릴까요?`;
+  document.getElementById('responseText').innerHTML=`
+  인증 완료됐습니다, ${name} 님.<br>
+  J.A.R.V.I.S 가동 준비 완료.<br>
+  명령만 내리십시오.
+`;
 }
 document.getElementById('apiInp').addEventListener('keydown',e=>{if(e.key==='Enter')saveKey();});
 
@@ -645,7 +660,7 @@ function restoreMemory(){
   if(mem.length > 0){
     messages = mem;
     sysLog('MEMORY RESTORED: '+mem.length+'건',true);
-    setResp('이전 대화 '+mem.length+'건을 복원했습니다.<br>계속 이어서 진행하겠습니다, '+USER_NAME+' 님.');
+    setResp('기억 복원 완료입니다, '+USER_NAME+' 님.<br>'+mem.length+'건의 이전 대화를 불러왔습니다.<br>이어서 진행하죠.');
   } else {
     sysLog('NO MEMORY FOUND');
     setResp('저장된 대화 기록이 없습니다, '+USER_NAME+' 님.');
@@ -895,9 +910,17 @@ else{
   if(savedMem.length > 0){
     messages = savedMem;
     sysLog('MEMORY RESTORED: '+savedMem.length+'건',true);
-    document.getElementById('responseText').innerHTML=`${USER_NAME} 님, 다시 오셨군요.<br>이전 대화 ${savedMem.length}건을 복원했습니다.<br>계속 도와드리겠습니다.`;
+    document.getElementById('responseText').innerHTML=`
+  다시 오셨군요, ${USER_NAME} 님.<br>
+  이전 대화 ${savedMem.length}건 복원 완료.<br>
+  어디서부터 시작할까요?
+`;
   } else {
-    document.getElementById('responseText').innerHTML=`좋은 하루입니다, ${USER_NAME} 님.<br>무엇을 도와드릴까요?`;
+    document.getElementById('responseText').innerHTML=`
+  안녕하십니까, ${USER_NAME} 님.<br>
+  J.A.R.V.I.S 온라인입니다.<br>
+  오늘도 현장을 장악할 준비가 되어 있습니다.
+`; 
   }
 }
 setTimeout(()=>sysLog('JARVIS CORE LOADED',true),500);
