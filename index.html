@@ -305,6 +305,7 @@ header {
 <script>
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const MODEL = 'claude-sonnet-4-6';
+const BRAVE_KEY = 'BSAx74lLbLsOrwW7-RsjHETzkjyHRYK';
 let API_KEY = localStorage.getItem('jarvis_key') || '';
 let messages = [];
 let queryCount = 0;
@@ -701,6 +702,69 @@ function kakaoReport(type){
   });
 }
 
+
+// ======== 웹 검색 (Brave Search API) ========
+async function webSearch(query){
+  sysLog('WEB SEARCH: '+query.substring(0,20)+'...',true);
+  setResp('<span style="opacity:.4;font-size:11px;letter-spacing:2px;">🔍 WEB SEARCHING ···</span>','// SEARCHING');
+  orbState='thinking';
+  try{
+    const res = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}&count=5&search_lang=ko&country=KR`,{
+      headers:{
+        'Accept':'application/json',
+        'Accept-Encoding':'gzip',
+        'X-Subscription-Token': BRAVE_KEY
+      }
+    });
+    if(!res.ok) throw new Error('검색 오류: '+res.status);
+    const data = await res.json();
+    const results = data.web?.results || [];
+    if(results.length===0) return '검색 결과가 없습니다.';
+    let summary = `[웹 검색 결과: ${query}]\n\n`;
+    results.slice(0,5).forEach((r,i)=>{
+      summary += `${i+1}. ${r.title}\n${r.description||''}\n출처: ${r.url}\n\n`;
+    });
+    return summary;
+  }catch(e){
+    sysLog('SEARCH ERROR: '+e.message);
+    return '검색 실패: '+e.message;
+  }
+}
+
+async function searchAndAnswer(query){
+  const searchResult = await webSearch(query);
+  // 검색 결과를 Claude에게 전달해서 답변 생성
+  const searchMessages = [
+    ...messages,
+    {role:'user', content:`다음 웹 검색 결과를 바탕으로 "${query}"에 대해 간결하게 답변해줘:\n\n${searchResult}`}
+  ];
+  try{
+    const res = await fetch(API_URL,{
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key':API_KEY,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body:JSON.stringify({model:MODEL, max_tokens:600, system:getSYS(), messages:searchMessages})
+    });
+    const data = await res.json();
+    if(data.content?.[0]){
+      const reply = data.content[0].text;
+      messages.push({role:'user', content:'검색: '+query});
+      messages.push({role:'assistant', content:reply});
+      setResp(reply.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>'));
+      speak(reply);
+      saveMemory();
+      sysLog('SEARCH COMPLETE',true);
+    }
+  }catch(e){
+    setResp('🔴 오류: '+e.message);
+  }
+  orbState='idle'; setStatus('ONLINE');
+}
+
 // ======== 명령어 파서 ========
 function parseCommand(text){
   const t = text.trim();
@@ -742,6 +806,14 @@ function parseCommand(text){
   if(/^(일일보고|일일 보고)/.test(t)){ kakaoReport('daily'); return true; }
   if(/^(MC 보고|MC현황|MC 현황)/.test(t)){ kakaoReport('mc'); return true; }
   if(/^(FCN 보고)/.test(t)){ kakaoReport('fcn'); return true; }
+
+  // 웹 검색 명령어
+  if(/^(검색|찾아|알려줘|뉴스)/.test(t) || /검색$/.test(t)){
+    const q = t.replace(/^(검색|찾아줘|알려줘|뉴스)\s*/,'').replace(/\s*검색$/,'');
+    if(q) searchAndAnswer(q);
+    else setResp('검색어를 입력해주세요. 예: "검색 오늘 날씨"');
+    return true;
+  }
 
   return false;
 }
