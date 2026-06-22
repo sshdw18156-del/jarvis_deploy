@@ -565,13 +565,8 @@ function speak(text){
 async function speakEleven(text){
   try{
     orbState='speaking'; setStatus('🔊 SPEAKING...');
-    const PROXY = 'https://jarvisdeploy-production.up.railway.app';
-    const res = await fetch(`${PROXY}/api/tts`,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text: text, voice_id: ELEVEN_VOICE})
-    });
-    if(!res.ok) throw new Error('TTS 오류: '+res.status);
+    // Railway 프록시 비활성 - 브라우저 TTS 사용
+    throw new Error('Railway 비활성');
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
@@ -763,13 +758,12 @@ async function webSearch(query){
   orbState='thinking';
   try{
     // Railway 프록시 서버로 검색 (CORS 해결)
-    const PROXY_URL = 'https://jarvisdeploy-production.up.railway.app';
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     let res;
     if(isLocal){
       res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
     } else {
-      res = await fetch(`${PROXY_URL}/api/search?q=${encodeURIComponent(query)}`);
+      throw new Error('웹 검색은 로컬 환경에서만 지원됩니다.');
     }
     if(!res.ok) throw new Error('검색 오류: '+res.status);
     const data = await res.json();
